@@ -1,125 +1,186 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 import seaborn as sns
-from imblearn.over_sampling import RandomOverSampler
-from sklearn.preprocessing import StandardScaler
-import lightgbm as lgb
 import random
-#Burada kütüphaneleri import ettik.
+import tensorflow as tf
+from keras.models import Sequential
+from keras.layers import Dense, Dropout
+from sklearn.model_selection import train_test_split
+from scipy import stats 
 
-seed_value = 0
-random.seed(seed_value)
-np.random.seed(seed_value)
-#Tekrarlanabilirlik için rastgele tohum değerini ayarlayalım
+# Rastgele tohumları ayarla
+np.random.seed(0)
+random.seed(0)
+tf.random.set_seed(0)
 
-data = pd.read_csv('/kaggle/input/diabetes-data-set/diabetes.csv')
-data.head()
-#Veri setini yükleyelim
+# Veriyi yükle
+df = pd.read_csv('/kaggle/input/wine-quality-dataset/WineQT.csv')
 
-data.info()
-#Veri bilgisini görelim.
+# Gereksiz sütunları çıkar
+df.drop('Id', axis=1, inplace=True)
 
-# Çizgi Grafikleri
-plt.figure(figsize=(10, 5))
-sns.lineplot(x='Age', y='Glucose', data=data)
+# Etiketleri yeniden sınıflandır
+df["quality"] = df["quality"].apply(lambda x: 1 if x > 5 else 0)
+x = df.drop(['quality'], axis=1)
+y = df['quality']
+
+# Veriyi train ve test setlere ayır
+x_train, x_test, y_train, y_test = train_test_split(x, y, random_state=0, shuffle=False, test_size=0.3)
+
+
+# Modeli oluştur
+classifier = Sequential()
+classifier.add(Dense(units=256, kernel_initializer='uniform', activation='relu', input_dim=len(x.columns), name="layer1"))
+classifier.add(Dropout(0.2))
+classifier.add(Dense(units=72, kernel_initializer='uniform', activation='relu', name="layer2"))
+classifier.add(Dropout(0.2))
+classifier.add(Dense(units=36, kernel_initializer='uniform', activation='relu'))
+classifier.add(Dropout(0.2))
+classifier.add(Dense(units=1, kernel_initializer='uniform', activation='sigmoid'))
+
+# Modeli derle
+classifier.compile(optimizer='Adam', loss='binary_crossentropy', metrics=['accuracy'])
+
+# Modeli eğit
+classifier.fit(x_train, y_train, batch_size=16, epochs=100, verbose=1, validation_data=(x_test, y_test))
+
+# Modeli değerlendir
+train_score, train_acc = classifier.evaluate(x_train, y_train, batch_size=256)
+print('Train score:', train_score)
+print('Train accuracy:', train_acc)
+
+
+
+test_score, test_acc = classifier.evaluate(x_test, y_test, batch_size=10)
+print('Test score:', test_score)
+print('Test accuracy:', test_acc)
+
+
+#Korelasyon Isı Haritası ve Matrisi:
+sns.set(font_scale=1)
+fig, ax = plt.subplots(2, 2, figsize=(15, 13))
+fig.subplots_adjust(hspace=.5, wspace=.3)
+ax = ax.flatten()
+threshold = 0.28
+
+# Train verileri için korelasyon haritası
+corrs = df.corr()
+np.fill_diagonal(corrs.values, np.nan)
+sns.heatmap(corrs, cmap="bwr", annot=True, fmt='.2f', linewidths=.05,
+            annot_kws={"fontsize": 11}, ax=ax[0], vmin=-1, vmax=1)
+
+# Korelasyon matrisinin düzeltilmesi ve görselleştirilmesi
+for k, v in corrs.items():
+    v[(v < threshold) & (v > 0)] = 0
+
+    #Korelasyon Isı Haritası ve Matrisi:
+
+
+
+sns.set(font_scale=1)
+fig, ax = plt.subplots(2, 2, figsize=(15, 13))
+fig.subplots_adjust(hspace=.5, wspace=.3)
+ax = ax.flatten()
+threshold = 0.28
+
+# Train verileri için korelasyon haritası
+corrs = df.corr()
+np.fill_diagonal(corrs.values, np.nan)
+sns.heatmap(corrs, cmap="bwr", annot=True, fmt='.2f', linewidths=.05,
+            annot_kws={"fontsize": 11}, ax=ax[0], vmin=-1, vmax=1)
+
+# Korelasyon matrisinin düzeltilmesi ve görselleştirilmesi
+for k, v in corrs.items():
+    v[(v < threshold) & (v > 0)] = 0
+    v[(v > -threshold) & (v < 0)] = 0
+corrs.replace(0, np.nan, inplace=True)
+corrs = corrs.where(np.triu(np.ones(corrs.shape)).astype(bool))
+sns.heatmap(corrs, cmap="bwr", annot=True, fmt='.2f', linewidths=.05,
+            annot_kws={"fontsize": 11}, ax=ax[2], vmin=-1, vmax=1)
+
+# Test verileri için korelasyon haritası
+corrs = x_test.corr()
+corrs['quality'] = np.nan
+corrs.loc['quality'] = np.nan
+np.fill_diagonal(corrs.values, np.nan)
+sns.heatmap(corrs, cmap="bwr", annot=True, fmt='.2f', linewidths=.05,
+            annot_kws={"fontsize": 11}, ax=ax[1], vmin=-1, vmax=1)
+
+# Korelasyon matrisinin düzeltilmesi ve görselleştirilmesi
+for k, v in corrs.items():
+    v[(v < threshold) & (v > 0)] = 0
+    v[(v > -threshold) & (v < 0)] = 0
+corrs.replace(0, np.nan, inplace=True)
+corrs = corrs.where(np.triu(np.ones(corrs.shape)).astype(bool))
+sns.heatmap(corrs, cmap="bwr", annot=True, fmt='.2f', linewidths=.05,
+            annot_kws={"fontsize": 11}, ax=ax[3], vmin=-1, vmax=1)
+
+fig.suptitle('Combined train and original vs test datasets', fontsize=20, fontweight='bold', x=.45)
+plt.show()
+#Bu kod, veri çerçevesindeki özelliklerin korelasyonunu görselleştirir. İlk olarak eğitim verileri için, ardından test verileri için iki ayrı korelasyon haritası ve düzeltilmiş korelasyon matrisi oluşturur.
+
+
+#Kutu Grafiği (Box Plot):
+plt.figure(figsize=(20, 10))
+sns.boxplot(x='pH', y='alcohol', data=df)
+plt.xlabel('Quality')
+plt.ylabel('Alcohol Content')
+plt.title('Box Plot of Alcohol Content by Wine Quality')
 plt.show()
 
-sns.heatmap(data.corr(), annot=True, fmt='0.2f')
-#Korelasyon matrisini görselleştirelim
+#Sahalama Grafiği (Scatter Plot):
+plt.figure(figsize=(10,10))
+sns.scatterplot(x = df['alcohol'], y = df['volatile acidity'], hue = df['quality'])
+sns.regplot(x = df['quality'], y = df['volatile acidity'])
+plt.title('Quality and volatile acidity')
 
-data[['Glucose', 'BloodPressure', 'BMI', 'Insulin', 'SkinThickness']] = data[['Glucose', 'BloodPressure', 'BMI', 'Insulin', 'SkinThickness']].replace(0, np.nan)
-data[['Glucose', 'BloodPressure', 'BMI', 'Insulin', 'SkinThickness']] = data[['Glucose', 'BloodPressure', 'BMI', 'Insulin', 'SkinThickness']].fillna(data[['Glucose', 'BloodPressure', 'BMI', 'Insulin', 'SkinThickness']].mean())
-#Eksik değerleri işleme
+#Kerteriz Grafiği (Kernel Density Estimation - KDE):
+fig, ax = plt.subplots(3, 4, figsize=(20, 15))
+ax = ax.flatten()
 
-num = data[data["SkinThickness"] == 0]
-num1 = data[data["BloodPressure"] == 0]
-num2 = data[data["Glucose"] == 0]
-num3 = data[data["Insulin"] == 0]
-num4 = data[data["BMI"] == 0]
-num.shape, num1.shape, num2.shape, num3.shape, num4.shape
-#Sıfır değerleri içeren örneklerin sayılması
+total_col = x.columns
+for idx, col in enumerate(total_col):
+    if col != 'quality':
+        sns.kdeplot(data=x, x=col, fill=True, ax=ax[idx], alpha=0.1)
+        sns.kdeplot(data=x_train, x=col, fill=True, ax=ax[idx], alpha=0.1)
+        sns.kdeplot(data=x_test, x=col, fill=True, ax=ax[idx], alpha=0.1)
+    else:
+        sns.histplot(data=df, x=col, ax=ax[idx], binwidth=0.3)
+        sns.histplot(data=x_train, x=col, ax=ax[idx])
 
-X = data.drop(columns=['Outcome'])
-y = data['Outcome']
-#Veriyi eğitim ve test setlerine ayıralım
+    ax[idx].set(title=col)
+    ax[idx].set(xlabel=None)
+    ax[idx].set(ylabel=None)
 
-ros = RandomOverSampler(random_state=0)
-X_ros, y_ros = ros.fit_resample(X, y)
-#Sınıf dengesizliğini ele almak için RandomOverSampler uygulayalım
-
-sns.countplot(data=data, x=y_ros)
-#Sınıf dağılımını görselleştirelim
-
-scaler = StandardScaler()
-X_train = scaler.fit_transform(X_train)
-X_test = scaler.transform(X_test)
-#Eğitim verilerinde özellik ölçeklendirmesi yapalım
-
-lgb_classifier = lgb.LGBMClassifier(n_estimators=100, random_state=0)
-lgb_classifier.fit(X_train, y_train)
-#LightGBM sınıflandırıcısını oluşturalım ve eğitelim
-
-sns.pairplot(data, diag_kind='auto', hue='Outcome', kind='scatter')
+labels = ['Original', 'Train', 'Test']
+fig.legend(labels, loc='upper center', bbox_to_anchor=(0.5, 0.95), fontsize=20, ncol=3)
 plt.show()
 
-y_pred = lgb_classifier.predict(X_test)
-#Test seti için hedef değerlerini tahmin edelim
+#Üç Boyutlu Sahalama Grafiği (3D Scatter Plot):
 
-data.hist(figsize = (20,20))
+import plotly.express as px
 
-accuracy = accuracy_score(y_test, y_pred)
-print("Doğruluk:", accuracy)
-#Doğruluk: 0.88
+# Sütunları seç
+x_column = "fixed acidity"
+y_column = "volatile acidity"
+z_column = "citric acid"
 
-import plotly.graph_objects as go
-fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
+# 3D saçılma grafiğini oluştur
+fig = px.scatter_3d(df, x=x_column, y=y_column, z=z_column, color="quality", opacity=0.7)
 
-x = data['Glucose']
-y = data['Insulin']
-z = data['BMI']
-bubble_sizes = data['BloodPressure']
+fig.update_layout(scene=dict(xaxis_title=x_column, yaxis_title=y_column, zaxis_title=z_column))
+fig.show()
 
-ax.scatter(x, y, z, s=bubble_sizes, alpha=0.6)
+#Uni-Variate Analiz ve Görselleştirmeler:
 
-ax.set_xlabel('Glucose')
-ax.set_ylabel('Insulin')
-ax.set_zlabel('BMI')
+col_list = df.columns
 
-plt.title('Glucose vs. Insulin vs. BMI with BloodPressure')
+fig, ax = plt.subplots(len(col_list), 2, figsize=(12, 6 * len(col_list)))
+for index, i in enumerate(col_list):
+    sns.distplot(df[i], ax=ax[index, 0], color='green')
+    sns.boxplot(data=df, x=i, ax=ax[index, 1], color='yellow')
+    
+fig.tight_layout()
+plt.suptitle("Uni-Variate Analysis of Continuous Variables", fontsize=16)
 plt.show()
-
-for i in range(X.shape[1]):
-    plt.figure()
-    sns.distplot(X.iloc[:,i])
-    plt.title(X.columns[i])
-plt.show()
-
-
-# ROC eğrisini çizelim
-from sklearn.metrics import roc_curve, roc_auc_score
-fpr, tpr, thresholds = roc_curve(y_test, y_pred)
-
-plt.figure(figsize=(8, 6))
-plt.plot(fpr, tpr, label='ROC Curve')
-plt.plot([0, 1], [0, 1], 'k--', label='Random Guess')
-plt.xlabel('False Positive Rate (FPR)')
-plt.ylabel('True Positive Rate (TPR) (Sensitivity)')
-plt.title('ROC Curve ')
-plt.legend()
-plt.grid(True)
-plt.show()
-
-# AUC (Alan Altındaki Eğri) değeri
-auc_score = roc_auc_score(y_test, y_pred)
-print("AUC Değeri:", auc_score)
-
-print("Karmaşıklık Matrisi:")
-print(confusion_matrix(y_test, y_pred))
-print("Sınıflandırma Raporu:")
-print(classification_report(y_test, y_pred))
-accuracy = accuracy_score(y_test, y_pred)
-print("Doğruluk:", accuracy)
