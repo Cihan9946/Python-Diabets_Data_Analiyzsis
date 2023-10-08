@@ -10,6 +10,7 @@ import lightgbm as lgb
 import random
 #Burada kütüphaneleri import ettik.
 
+
 seed_value = 0
 random.seed(seed_value)
 np.random.seed(seed_value)
@@ -18,6 +19,7 @@ np.random.seed(seed_value)
 data = pd.read_csv('/kaggle/input/diabetes-data-set/diabetes.csv')
 data.head()
 #Veri setini yükleyelim
+
 
 data.info()
 #Veri bilgisini görelim.
